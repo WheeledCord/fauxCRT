@@ -196,7 +196,7 @@
         'Built-in Commands:',
         '',
         '  clear: Clear the screen.',
-        '  whoami: Display current user (always "root").',
+        '  whoami: Display current user (just returns root. I am NOT adding users or groups).',
         '  resetfs: Reset and wipe the file system.',
         '',
         '  mkdir <dir>: Create a new directory.',
