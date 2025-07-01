@@ -40,9 +40,9 @@ async function boot() {
   const barLine = document.createElement('p');
   barLine.className = 'line';
   term.appendChild(barLine);
-  for (let i = 0; i <= 400; i++) {
+  for (let i = 0; i <= 300; i++) {
     barLine.textContent = '#'.repeat(i);
-    await wait(25);
+    await wait(20);
   }
 
   await wait(200);
@@ -121,7 +121,6 @@ function shell() {
   let input    = '';
   let promptEl = newPrompt();
 
-  //ctx.write will be set by commands.js for write and append mode
   const ctx = { write: null };
   const commands = window.FauxOSCommands(line, ctx);
 
