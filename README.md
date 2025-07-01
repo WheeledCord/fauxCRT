@@ -6,6 +6,7 @@ A web-based fake terminal that acts as some old DOS or UNIX OS. Users can run fa
 2. Type help :)
 
 ## Commands
+```
 clear: Clear the screen.
 whoami: Display current user (just returns root. I am NOT adding users or groups).
 resetfs: Reset and wipe the file system.
@@ -22,4 +23,4 @@ cp <src> <dest>: Copy a file.
 mv <src> <dest>: Move or rename a file or directory.
 echo <text>: Print text.
 help: Lists all commands and their usage.
-  
+```
