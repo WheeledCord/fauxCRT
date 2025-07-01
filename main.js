@@ -33,7 +33,7 @@ async function boot() {
   await line(' ');
   await wait(1000);
 
-  await line(); await line('Searching floppy disk...'); await wait(3500);
+  await line(); await line('Searching floppy disk...'); await wait(2700);
   await line(' ');
   await line(); await line('Searching hard disk...');   await wait(743);
 
