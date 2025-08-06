@@ -1,24 +1,44 @@
 const term  = document.getElementById('terminal');
 const wait  = ms => new Promise(r => setTimeout(r, ms));
 
+// Anchor for active prompt so we can insert output above it.
+window._fauxPromptEl = null;
+
 async function line(txt = '', delay = 25) {
   await wait(delay);
-  const p      = document.createElement('p');
-  p.className  = 'line';
+  const p       = document.createElement('p');
+  p.className   = 'line';
   p.textContent = txt;
-  term.appendChild(p);
+
+  // Insert above the active prompt so prompt always stays last.
+  if (window._fauxPromptEl && window._fauxPromptEl.parentNode === term) {
+    term.insertBefore(p, window._fauxPromptEl);
+  } else {
+    term.appendChild(p);
+  }
   term.scrollTop = term.scrollHeight;
 }
+
 function newPrompt() {
   const p = document.createElement('p');
   p.className = 'line';
-  p.innerHTML = '&gt; <span class="cursor"></span>';
+  p.innerHTML = '<span class="prompt-prefix"></span><span class="prompt-input"></span><span class="cursor"></span>';
   term.appendChild(p);
   term.scrollTop = term.scrollHeight;
+  window._fauxPromptEl = p;
   return p;
 }
 
-//boot sequence
+function setPrompt(prefix, input = '') {
+  if (!window._fauxPromptEl) newPrompt();
+  const pfx = window._fauxPromptEl.querySelector('.prompt-prefix');
+  const inp = window._fauxPromptEl.querySelector('.prompt-input');
+  pfx.textContent = prefix;
+  inp.textContent = input;
+  term.scrollTop = term.scrollHeight;
+}
+
+// boot sequence
 async function boot() {
   const box = [
     '########################################',
@@ -112,6 +132,10 @@ async function boot() {
   term.innerHTML = '';
   await line('Welcome to fauxOS!');
   await line("Type 'help' to get started");
+
+  // ensure commands are loaded before starting the shell
+  await window.FauxOS.ready;
+
   shell();
 }
 
@@ -119,18 +143,68 @@ function shell() {
   let history  = [];
   let histPtr  = 0;
   let input    = '';
-  let promptEl = newPrompt();
 
-  const ctx = { write: null };
-  const commands = window.FauxOSCommands(line, ctx);
+  const ctx = {
+    write: null,          // { buffer: [], finish(lines) {} }
+    modal: null,          // { buffer: '', resolve }
+    readLine: null        // function(message?) => Promise<string>
+  };
 
-  function refresh() {
-    promptEl.innerHTML = `&gt; ${input}<span class="cursor"></span>`;
-    term.scrollTop = term.scrollHeight;
+  // Always pull a fresh map so `rebuild`/edits take effect immediately
+  const getCommands = () => window.FauxOSCommands(line, ctx);
+
+  function currentPrefix() {
+    // Modal confirmations and write/append use "> "
+    if (ctx.modal || ctx.write) return '> ';
+    // Regular shell prompt:
+    return 'root@fauxos~# ';
   }
 
+  function refresh() {
+    setPrompt(currentPrefix(), input);
+  }
+
+  // Provide a modal read-line helper for commands (used by resetfs)
+  ctx.readLine = async (message) => {
+    if (message) await line(message);
+    // start modal input
+    ctx.modal = { buffer: '', resolve: null };
+    input = '';
+    refresh();
+    return new Promise(resolve => {
+      ctx.modal.resolve = resolve;
+    });
+  };
+
+  // Create initial prompt
+  newPrompt();
+  refresh();
+
   document.addEventListener('keydown', async e => {
-    //interactive write/append mode thing
+    // --- Modal prompt handling (e.g., confirmations) ---
+    if (ctx.modal) {
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        input += e.key; refresh();
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        input = input.slice(0, -1); refresh();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        // Finalize the modal line visually
+        setPrompt(currentPrefix(), input);
+        const val = input;
+        input = '';
+        const resolve = ctx.modal.resolve;
+        ctx.modal = null;
+        // After command continues, place a fresh prompt
+        newPrompt(); refresh();
+        resolve(val);
+      }
+      return;
+    }
+
+    // --- Interactive write/append entry mode ---
     if (ctx.write) {
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
@@ -140,42 +214,50 @@ function shell() {
         input = input.slice(0, -1); refresh();
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        promptEl.innerHTML = `&gt; ${input}`;
+        // finalize the current input line
+        setPrompt(currentPrefix(), input);
         ctx.write.buffer.push(input);
         if (input === '') {
+          // blank line ends the session
           ctx.write.finish(ctx.write.buffer);
           ctx.write = null;
           await line('(file written)');
         }
         input = '';
-        promptEl = newPrompt();
-        refresh();
+        newPrompt(); refresh();
       }
       return;
     }
 
-    //normal shell
+    // --- Normal shell ---
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();  //stops browser from breaking stuff
+      e.preventDefault();
       input += e.key; refresh();
     } else if (e.key === 'Backspace') {
       e.preventDefault();
       input = input.slice(0, -1); refresh();
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      promptEl.innerHTML = `&gt; ${input}`;
+      // finalize the command line
+      setPrompt(currentPrefix(), input);
+      // detach active prompt anchor so output prints below this line
+      window._fauxPromptEl = null;
+
       history.push(input); histPtr = history.length;
 
       const [cmd, ...args] = input.trim().split(/\s+/);
       input = '';
 
       if (cmd) {
-        const fn = commands[cmd];
-        if (!fn) await line(`${cmd}: command not found`);
-        else     await fn(args);
+        const map = getCommands();
+        const fn  = map[cmd];
+        if (!fn) {
+          await line(`${cmd}: command not found`);
+        } else {
+          await fn(args);
+        }
       }
-      promptEl = newPrompt();
-      refresh();
+      newPrompt(); refresh();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (histPtr > 0) histPtr--;
