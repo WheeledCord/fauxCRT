@@ -1,7 +1,7 @@
 // commands.js
 (function (global) {
   const FS_COOKIE = 'fauxfs';
-  const cookieTTL = 365 * 24 * 60 * 60 * 1000;   // 1y
+  const cookieTTL = 365 * 24 * 60 * 60 * 1000;
 
   function loadFS() {
     const kv = document.cookie.split('; ').find(s => s.startsWith(FS_COOKIE + '='));
@@ -14,17 +14,15 @@
     document.cookie = `${FS_COOKIE}=${encodeURIComponent(JSON.stringify(tree))}; expires=${exp}; path=/`;
   }
 
-  // In-mem FS + CWD
-  let FS  = loadFS();                 // { '/': {...} }
-  let cwd = ['/', 'home', 'root'];    // start in /home/root
+  let FS  = loadFS();
+  let cwd = ['/', 'home', 'root'];
 
-  // ----- base dirs + meta -----
   function ensureBaseFS() {
     const root = (FS['/'] ||= {});
     root.commands   ||= {};
     root.home       ||= {};
     root.home.root  ||= {};
-    root.__meta     ||= {};           // non-file metadata (not visible via ls)
+    root.__meta     ||= {};
     if (typeof root.__meta !== 'object' || root.__meta.__file) root.__meta = {};
   }
   ensureBaseFS();
@@ -38,7 +36,6 @@
     saveFS(FS);
   }
 
-  // -------- path + FS helpers ----------
   function resolvePath(raw) {
     if (!raw) return [...cwd].slice(1);
     const parts = raw.split('/').filter(Boolean);
@@ -66,8 +63,7 @@
   const isDir  = n => n && !n.__file;
   const isFile = n => n &&  n.__file;
 
-  // ---------- Command registry ----------
-  const registry = new Map(); // name -> factory(env)
+  const registry = new Map();
 
   function register(name, factory) {
     registry.set(name, factory);
@@ -76,7 +72,6 @@
     return Array.from(registry.keys()).sort();
   }
 
-  // env passed to command factories
   const env = {
     resolvePath,
     getNode,
@@ -90,7 +85,6 @@
     listCommands,
   };
 
-  // ---------- Static fetch helpers (for initial expose only) ----------
   const rel = (p) => new URL(p, location.href).toString();
   async function fetchText(url) {
     const r = await fetch(url, { cache: 'no-store' });
@@ -107,7 +101,6 @@
     }
   }
 
-  // ---------- FS views ----------
   function listFSCommands() {
     const cmdDir = (FS['/'].commands && isDir(FS['/'].commands)) ? FS['/'].commands : null;
     if (!cmdDir) return [];
@@ -126,7 +119,6 @@
     }
   }
 
-  // ---------- Expose-once + loaders ----------
   async function exposeBaseOnce() {
     const meta = getMeta();
     if (meta.baseExposed) return;
@@ -134,7 +126,6 @@
     const root = FS['/'];
     root.commands ||= {};
     for (const n of names) {
-      // write static file into FS only if not present
       if (root.commands[`${n}.js`]?.__file) continue;
       try {
         const src = await fetchText(rel(`commands/${n}.js`));
@@ -143,7 +134,7 @@
         console.warn(`exposeBaseOnce: skip ${n}.js`, e);
       }
     }
-    meta.baseExposed = true; // mark exposed so we don't respawn deleted files
+    meta.baseExposed = true;
     setMeta(meta);
     saveFS(FS);
   }
@@ -165,12 +156,11 @@
 
   async function initialBoot() {
     ensureBaseFS();
-    await exposeBaseOnce();   // seed commands dir on first boot only
-    await loadAllFromFS();    // load only from FS (respect edits/deletions)
+    await exposeBaseOnce();
+    await loadAllFromFS();
   }
 
   async function rebuild() {
-    // If FS was wiped (resetfs), re-expose now; otherwise just reload FS.
     ensureBaseFS();
     const meta = getMeta();
     if (!meta.baseExposed) {
@@ -179,20 +169,17 @@
     await loadAllFromFS();
   }
 
-  // kick off initial load
   const readyPromise = initialBoot();
 
-  // Public API
   global.FauxOS = {
     register,
     env,
     ready: readyPromise,
     rebuild,
-    exposeBase: exposeBaseOnce, // not needed by users, but available
+    exposeBase: exposeBaseOnce,
     listCommands,
   };
 
-  // Back-compat for main.js
   global.FauxOSCommands = function (lineFn, ctx) {
     const wrapper = {};
     for (const [name, factory] of registry.entries()) {

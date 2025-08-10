@@ -6,16 +6,41 @@
   <title>fauxCRT</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
-  <div id="screen">
-    <div class="terminal" id="terminal"></div>
-    <div class="overlay scanlines"></div>
-    <div class="overlay vignette"></div>
-    <div class="overlay glow"></div>
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <!-- extend extra area only vertically -->
+      <filter id="crt" x="-20%" y="-25%" width="140%" height="150%">
+        <feImage href="barrel.png"
+                 x="-20%" y="-25%" width="140%" height="150%"
+                 preserveAspectRatio="none"
+                 result="disp"/>
+        <feDisplacementMap in="SourceGraphic" in2="disp"
+                           scale="75"
+                           xChannelSelector="R"
+                           yChannelSelector="G"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <div id="screen" style="position:relative;overflow:hidden">
+    <div class="crt-content"
+        style="width:100%;height:100%;
+                transform:scaleX(1.04) scaleY(1.08);
+                transform-origin:center;
+                filter:url(#crt)">
+
+      <div class="terminal" id="terminal"></div>
+      <div class="overlay scanlines"></div>
+      <div class="overlay vignette"></div>
+      <div class="overlay glow"></div>
+      <div class="overlay flicker"></div>
+    </div>
   </div>
 
-<script src="storage.js"></script>
-<script src="commands.js"></script>
-<script src="main.js"></script>
+  <script src="storage.js"></script>
+  <script src="commands.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
